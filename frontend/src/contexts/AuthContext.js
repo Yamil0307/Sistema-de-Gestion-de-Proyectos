@@ -1,112 +1,153 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect } from 'react';
 import { authService } from '../services/authService';
 
 const AuthContext = createContext();
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const token = localStorage.getItem('access_token');
-        const userData = localStorage.getItem('user_data');
-        
-        if (token && userData) {
-          // Verificar si el token sigue siendo válido
-          try {
-            await authService.verifyToken();
-            setUser(JSON.parse(userData));
-          } catch (error) {
-            // Token inválido, limpiar datos
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_data');
-          }
+    // Verificar si hay un token almacenado y cargar el usuario
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (token) {
+        try {
+          const userData = await authService.getCurrentUser();
+          // Asegurarnos de que todos los usuarios tengan rol de administrador
+          const adminUser = {
+            ...userData,
+            role: 'admin', // Garantizar que todos los usuarios sean considerados admin
+            isAdmin: true  // Flag adicional para facilitar verificaciones
+          };
+          setUser(adminUser);
+        } catch (error) {
+          console.error('Error al cargar usuario:', error);
+          localStorage.removeItem('token');
         }
-      } catch (error) {
-        console.error('Error al inicializar autenticación:', error);
       }
       
       setLoading(false);
     };
-
-    initAuth();
+    
+    checkAuth();
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (credentials) => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      // Intentar login con API real
-      const response = await authService.login(username, password);
+      await authService.login(credentials);
       
-      // Guardar token
-      localStorage.setItem('access_token', response.access_token);
+      // Añadir log para depuración
+      console.log("Login exitoso, obteniendo información del usuario...");
+      console.log("Token en localStorage:", localStorage.getItem('token'));
       
-      // Obtener datos del usuario
+      // Intentar obtener la información del usuario actual
       try {
         const userData = await authService.getCurrentUser();
-        localStorage.setItem('user_data', JSON.stringify(userData));
         setUser(userData);
         return { success: true };
       } catch (userError) {
-        // Si no se pueden obtener datos del usuario, usar datos básicos
-        const basicUser = { username, nombre: username };
-        localStorage.setItem('user_data', JSON.stringify(basicUser));
-        setUser(basicUser);
+        console.error("Error al obtener información del usuario:", userError);
+        // Incluso si falla obtener el usuario, consideramos el login como exitoso
         return { success: true };
       }
-      
     } catch (error) {
       console.error('Error en login:', error);
       
-      // Fallback a login simulado para desarrollo
-      if (username === 'admin' && password === 'admin') {
-        const mockUser = {
-          id: 1,
-          nombre: 'Administrador (Modo Demo)',
-          username: 'admin',
-          rol: 'admin'
-        };
-        
-        const mockToken = 'demo-token-' + Date.now();
-        localStorage.setItem('access_token', mockToken);
-        localStorage.setItem('user_data', JSON.stringify(mockUser));
-        setUser(mockUser);
-        
-        return { success: true };
+      // Manejar respuestas de error de la API
+      let errorMessage = 'Error al iniciar sesión';
+      if (error.response) {
+        // Errores de la API
+        if (error.response.data && error.response.data.detail) {
+          if (typeof error.response.data.detail === 'string') {
+            errorMessage = error.response.data.detail;
+          } else if (Array.isArray(error.response.data.detail)) {
+            errorMessage = error.response.data.detail[0].msg || errorMessage;
+          }
+        } else if (error.response.status === 401) {
+          errorMessage = 'Credenciales incorrectas';
+        } else if (error.response.status === 422) {
+          errorMessage = 'Formato de datos incorrecto';
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      return { 
-        success: false, 
-        error: error.response?.data?.detail || 'Error de conexión. Verificar que el backend esté corriendo.' 
-      };
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const data = await authService.register(userData);
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error en registro:', error);
+      // Manejo mejorado del error
+      let errorMessage = 'Error al registrar usuario';
+      
+      if (error.response && error.response.data) {
+        // Si es un error de validación de FastAPI
+        if (error.response.data.detail) {
+          if (Array.isArray(error.response.data.detail)) {
+            // Si es un array de errores, tomamos el primero
+            errorMessage = error.response.data.detail[0].msg || errorMessage;
+          } else {
+            // Si es un único error
+            errorMessage = typeof error.response.data.detail === 'string' 
+              ? error.response.data.detail 
+              : errorMessage;
+          }
+        } else if (error.response.status === 409) {
+          errorMessage = "El usuario ya existe";
+        } else if (error.response.status === 422) {
+          errorMessage = "Datos de registro inválidos";
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user_data');
+    authService.logout();
     setUser(null);
+  };
+
+  // Añadir método utilitario para verificar permisos (siempre retorna true)
+  const hasPermission = (permission) => {
+    // Como todos son administradores, siempre tienen todos los permisos
+    return true;
   };
 
   const value = {
     user,
+    loading,
+    error,
     login,
+    register,
     logout,
-    loading
+    hasPermission, // Nuevo método utilitario
+    isAdmin: !!user // Shorthand para verificar si hay un usuario (todos son admin)
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -1,39 +1,27 @@
-import api from './api';
+import api from '../utils/axios';
 
 export const projectService = {
   // Obtener todos los proyectos
-  getAllProjects: async () => {
-    const response = await api.get('/projects/');
-    return response.data;
-  },
-  
-  // Obtener un proyecto específico
-  getProject: async (id) => {
-    const response = await api.get(`/projects/${id}`);
-    return response.data;
+  getAll: async () => {
+    const res = await api.get('/projects/');
+    return res.data;
   },
   
   // Crear nuevo proyecto
-  createProject: async (projectData) => {
-    const response = await api.post('/projects/', projectData);
-    return response.data;
+  create: async (data) => {
+    const res = await api.post('/projects/', data);
+    return res.data;
   },
   
   // Actualizar proyecto existente
-  updateProject: async (id, projectData) => {
-    const response = await api.put(`/projects/${id}`, projectData);
-    return response.data;
+  update: async (id, data) => {
+    const res = await api.put(`/projects/${id}`, data);
+    return res.data;
   },
   
   // Eliminar proyecto
-  deleteProject: async (id) => {
-    const response = await api.delete(`/projects/${id}`);
-    return response.data;
-  },
-
-  // Buscar proyectos por estado
-  getProjectsByStatus: async (status) => {
-    const response = await api.get(`/projects/status/${status}`);
-    return response.data;
+  delete: async (id) => {
+    const res = await api.delete(`/projects/${id}`);
+    return res.data;
   }
 };

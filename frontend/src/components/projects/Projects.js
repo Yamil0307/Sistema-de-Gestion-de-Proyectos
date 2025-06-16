@@ -1,79 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Chip,
-  IconButton,
-  Dialog,
-  Alert,
-  CircularProgress,
-  Fab
+  Container, Typography, Button, Box, Grid, Card, CardContent, CardActions,
+  IconButton, TextField, Dialog, DialogActions, DialogContent, DialogTitle,
+  FormControl, InputLabel, Select, MenuItem, Alert, CircularProgress, Paper, Divider, Chip, Tooltip
 } from '@mui/material';
 import {
-  Add,
-  Edit,
-  Delete,
-  Visibility,
-  Assignment,
-  CalendarToday,
-  Group,
-  TrendingUp
+  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Info as InfoIcon, Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { projectService } from '../../services/projectService';
-import ProjectForm from './ProjectForm';
-import ProjectDetails from './ProjectDetails';
 
 const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [openForm, setOpenForm] = useState(false);
-  const [openDetails, setOpenDetails] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [formMode, setFormMode] = useState('create'); // 'create' o 'edit'
+  const [openDialog, setOpenDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [currentProject, setCurrentProject] = useState(null);
+  const [formData, setFormData] = useState({
+    nombre: '',
+    descripcion: '',
+    fecha_inicio: '',
+    fecha_fin_estimada: '',
+    estado: 'Planificación'
+  });
 
-  // Datos mock para desarrollo
-  const mockProjects = [
-    {
-      id: 1,
-      nombre: 'Sistema de Inventario',
-      descripcion: 'Sistema web para gestión de inventarios con React y Node.js',
-      estado: 'En Progreso',
-      fecha_inicio: '2024-01-15',
-      fecha_fin: '2024-06-30',
-      presupuesto: 50000,
-      cliente: 'Empresa ABC',
-      tecnologias: ['React', 'Node.js', 'MongoDB']
-    },
-    {
-      id: 2,
-      nombre: 'App Móvil E-commerce',
-      descripcion: 'Aplicación móvil para ventas online con React Native',
-      estado: 'Planificación',
-      fecha_inicio: '2024-02-01',
-      fecha_fin: '2024-08-15',
-      presupuesto: 75000,
-      cliente: 'TechStore',
-      tecnologias: ['React Native', 'Firebase', 'Stripe']
-    },
-    {
-      id: 3,
-      nombre: 'Dashboard Analítico',
-      descripcion: 'Dashboard para análisis de datos con visualizaciones interactivas',
-      estado: 'Completado',
-      fecha_inicio: '2023-10-01',
-      fecha_fin: '2024-01-30',
-      presupuesto: 30000,
-      cliente: 'DataCorp',
-      tecnologias: ['React', 'D3.js', 'Python']
-    }
+  const projectStates = [
+    'Planificación', 'En Progreso', 'Pausado', 'Completado', 'Cancelado'
   ];
 
   useEffect(() => {
@@ -83,84 +35,105 @@ const Projects = () => {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      // Intentar cargar desde API
-      const data = await projectService.getAllProjects();
+      setError('');
+      const data = await projectService.getAll();
       setProjects(data);
     } catch (error) {
-      console.log('Error al cargar proyectos desde API, usando datos mock:', error);
-      // Fallback a datos mock
-      setProjects(mockProjects);
+      setError(error.userMessage || 'Error al cargar los proyectos');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateProject = () => {
-    setSelectedProject(null);
-    setFormMode('create');
-    setOpenForm(true);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
   };
 
-  const handleEditProject = (project) => {
-    setSelectedProject(project);
-    setFormMode('edit');
-    setOpenForm(true);
+  const handleOpenDialog = (project = null) => {
+    if (project) {
+      setCurrentProject(project);
+      setFormData({
+        nombre: project.nombre || '',
+        descripcion: project.descripcion || '',
+        fecha_inicio: project.fecha_inicio ? project.fecha_inicio.substr(0, 10) : '',
+        fecha_fin_estimada: project.fecha_fin_estimada ? project.fecha_fin_estimada.substr(0, 10) : '',
+        estado: project.estado || 'Planificación'
+      });
+    } else {
+      setCurrentProject(null);
+      setFormData({
+        nombre: '',
+        descripcion: '',
+        fecha_inicio: '',
+        fecha_fin_estimada: '',
+        estado: 'Planificación'
+      });
+    }
+    setOpenDialog(true);
   };
 
-  const handleViewProject = (project) => {
-    setSelectedProject(project);
-    setOpenDetails(true);
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setCurrentProject(null);
   };
 
-  const handleDeleteProject = async (projectId) => {
-    if (window.confirm('¿Está seguro de que desea eliminar este proyecto?')) {
-      try {
-        await projectService.deleteProject(projectId);
-        setProjects(projects.filter(p => p.id !== projectId));
-      } catch (error) {
-        console.error('Error al eliminar proyecto:', error);
-        setError('Error al eliminar el proyecto');
+  const handleSaveProject = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      if (currentProject) {
+        await projectService.update(currentProject.id, formData);
+      } else {
+        await projectService.create(formData);
       }
+      await loadProjects();
+      handleCloseDialog();
+    } catch (error) {
+      setError(error.userMessage || 'Error al guardar el proyecto');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleFormSubmit = async (projectData) => {
+  const handleOpenDeleteDialog = (project) => {
+    setCurrentProject(project);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+    setCurrentProject(null);
+  };
+
+  const handleDeleteProject = async () => {
     try {
-      if (formMode === 'create') {
-        const newProject = await projectService.createProject(projectData);
-        setProjects([...projects, newProject]);
-      } else {
-        const updatedProject = await projectService.updateProject(selectedProject.id, projectData);
-        setProjects(projects.map(p => p.id === selectedProject.id ? updatedProject : p));
-      }
-      setOpenForm(false);
+      setLoading(true);
+      setError('');
+      await projectService.delete(currentProject.id);
+      await loadProjects();
+      handleCloseDeleteDialog();
     } catch (error) {
-      console.error('Error al guardar proyecto:', error);
-      setError('Error al guardar el proyecto');
+      setError(error.userMessage || 'Error al eliminar el proyecto');
+    } finally {
+      setLoading(false);
     }
   };
 
   const getStatusColor = (status) => {
-    const statusColors = {
+    const colors = {
       'Planificación': '#ff9800',
       'En Progreso': '#2196f3',
-      'Completado': '#4caf50',
       'Pausado': '#9e9e9e',
+      'Completado': '#4caf50',
       'Cancelado': '#f44336'
     };
-    return statusColors[status] || '#9e9e9e';
+    return colors[status] || '#9e9e9e';
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount);
-  };
-
-  if (loading) {
+  if (loading && projects.length === 0) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+      <Container sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
       </Container>
     );
@@ -168,229 +141,244 @@ const Projects = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Header */}
-      <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Gestión de Proyectos
-            </Typography>
-            <Typography variant="body1" color="textSecondary">
-              Administra todos los proyectos de software de la empresa
-            </Typography>
-          </Box>
+      <Paper elevation={0} sx={{ p: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+          <Typography variant="h5" color="primary" sx={{ display: 'flex', alignItems: 'center' }}>
+            <AssignmentIcon sx={{ mr: 1 }} /> Proyectos
+          </Typography>
           <Button
             variant="contained"
-            startIcon={<Add />}
-            onClick={handleCreateProject}
-            size="large"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
           >
             Nuevo Proyecto
           </Button>
         </Box>
+
+        <Divider sx={{ mb: 3 }} />
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+
+        {projects.length === 0 && !loading ? (
+          <Paper sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="body1" color="textSecondary" gutterBottom>
+              No hay proyectos disponibles
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenDialog()}
+              sx={{ mt: 1 }}
+            >
+              Crear Primer Proyecto
+            </Button>
+          </Paper>
+        ) : (
+          <Grid container spacing={3}>
+            {projects.map((project) => (
+              <Grid item key={project.id} xs={12} md={6} lg={4}>
+                <Card 
+                  elevation={2}
+                  sx={{ 
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transition: 'transform 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  <Box sx={{ 
+                    bgcolor: getStatusColor(project.estado),
+                    p: 1,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}>
+                    <Chip 
+                      label={project.estado} 
+                      color="default"
+                      sx={{ 
+                        bgcolor: 'white',
+                        fontWeight: 'medium',
+                        color: getStatusColor(project.estado)
+                      }} 
+                    />
+                  </Box>
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6" component="h2" gutterBottom>
+                      {project.nombre}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 40 }}>
+                      {project.descripcion && project.descripcion.length > 100 
+                        ? `${project.descripcion.substring(0, 100)}...` 
+                        : project.descripcion}
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Fecha Inicio:
+                        </Typography>
+                        <Typography variant="body2">
+                          {project.fecha_inicio 
+                            ? new Date(project.fecha_inicio).toLocaleDateString() 
+                            : 'No definida'}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Fecha Est. Fin:
+                        </Typography>
+                        <Typography variant="body2">
+                          {project.fecha_fin_estimada 
+                            ? new Date(project.fecha_fin_estimada).toLocaleDateString() 
+                            : 'No definida'}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                  <CardActions sx={{ justifyContent: 'flex-end', p: 2 }}>
+                    <Tooltip title="Ver detalles">
+                      <IconButton color="primary" aria-label="ver detalles">
+                        <InfoIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Editar">
+                      <IconButton 
+                        color="primary" 
+                        aria-label="editar proyecto"
+                        onClick={() => handleOpenDialog(project)}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton 
+                        color="error" 
+                        aria-label="eliminar proyecto"
+                        onClick={() => handleOpenDeleteDialog(project)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </CardActions>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </Paper>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Estadísticas rápidas */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#e3f2fd' }}>
-            <CardContent>
-              <Assignment sx={{ fontSize: 40, color: '#1976d2', mb: 1 }} />
-              <Typography variant="h4" color="#1976d2">
-                {projects.length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Total Proyectos
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#e8f5e8' }}>
-            <CardContent>
-              <TrendingUp sx={{ fontSize: 40, color: '#2e7d32', mb: 1 }} />
-              <Typography variant="h4" color="#2e7d32">
-                {projects.filter(p => p.estado === 'En Progreso').length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                En Progreso
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#fff3e0' }}>
-            <CardContent>
-              <CalendarToday sx={{ fontSize: 40, color: '#f57c00', mb: 1 }} />
-              <Typography variant="h4" color="#f57c00">
-                {projects.filter(p => p.estado === 'Planificación').length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Planificación
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#e8f5e8' }}>
-            <CardContent>
-              <Group sx={{ fontSize: 40, color: '#388e3c', mb: 1 }} />
-              <Typography variant="h4" color="#388e3c">
-                {projects.filter(p => p.estado === 'Completado').length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Completados
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Lista de Proyectos */}
-      <Grid container spacing={3}>
-        {projects.map((project) => (
-          <Grid item xs={12} md={6} lg={4} key={project.id}>
-            <Card 
-              sx={{ 
-                height: '100%', 
-                display: 'flex', 
-                flexDirection: 'column',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 4
-                }
-              }}
-            >
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography variant="h6" component="h3" gutterBottom>
-                    {project.nombre}
-                  </Typography>
-                  <Chip
-                    label={project.estado}
-                    size="small"
-                    sx={{
-                      backgroundColor: getStatusColor(project.estado),
-                      color: 'white',
-                      fontWeight: 'bold'
-                    }}
-                  />
-                </Box>
-                
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 2, minHeight: 40 }}>
-                  {project.descripcion}
-                </Typography>
-                
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="body2" color="textSecondary">
-                    <strong>Cliente:</strong> {project.cliente}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    <strong>Presupuesto:</strong> {formatCurrency(project.presupuesto)}
-                  </Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    <strong>Inicio:</strong> {new Date(project.fecha_inicio).toLocaleDateString('es-AR')}
-                  </Typography>
-                </Box>
-
-                {project.tecnologias && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {project.tecnologias.slice(0, 3).map((tech, index) => (
-                      <Chip
-                        key={index}
-                        label={tech}
-                        size="small"
-                        variant="outlined"
-                      />
-                    ))}
-                    {project.tecnologias.length > 3 && (
-                      <Chip
-                        label={`+${project.tecnologias.length - 3}`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
-                  </Box>
-                )}
-              </CardContent>
-              
-              <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
-                <Box>
-                  <IconButton
-                    onClick={() => handleViewProject(project)}
-                    color="primary"
-                    title="Ver detalles"
-                  >
-                    <Visibility />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => handleEditProject(project)}
-                    color="primary"
-                    title="Editar"
-                  >
-                    <Edit />
-                  </IconButton>
-                </Box>
-                <IconButton
-                  onClick={() => handleDeleteProject(project.id)}
-                  color="error"
-                  title="Eliminar"
-                >
-                  <Delete />
-                </IconButton>
-              </CardActions>
-            </Card>
+      {/* Diálogo de creación/edición de proyecto */}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {currentProject ? 'Editar Proyecto' : 'Nuevo Proyecto'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            name="nombre"
+            label="Nombre del Proyecto"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={formData.nombre}
+            onChange={handleChange}
+            required
+          />
+          <TextField
+            margin="dense"
+            name="descripcion"
+            label="Descripción"
+            type="text"
+            fullWidth
+            variant="outlined"
+            multiline
+            rows={3}
+            value={formData.descripcion}
+            onChange={handleChange}
+          />
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                margin="dense"
+                name="fecha_inicio"
+                label="Fecha de Inicio"
+                type="date"
+                fullWidth
+                variant="outlined"
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                value={formData.fecha_inicio}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                margin="dense"
+                name="fecha_fin_estimada"
+                label="Fecha estimada de finalización"
+                type="date"
+                fullWidth
+                variant="outlined"
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                value={formData.fecha_fin_estimada}
+                onChange={handleChange}
+              />
+            </Grid>
           </Grid>
-        ))}
-      </Grid>
-
-      {/* Mensaje si no hay proyectos */}
-      {projects.length === 0 && (
-        <Paper sx={{ p: 4, textAlign: 'center', mt: 4 }}>
-          <Assignment sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" color="textSecondary" gutterBottom>
-            No hay proyectos registrados
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-            Comienza creando tu primer proyecto
-          </Typography>
-          <Button variant="contained" startIcon={<Add />} onClick={handleCreateProject}>
-            Crear Primer Proyecto
+          <FormControl fullWidth margin="dense">
+            <InputLabel id="estado-label">Estado</InputLabel>
+            <Select
+              labelId="estado-label"
+              name="estado"
+              value={formData.estado}
+              label="Estado"
+              onChange={handleChange}
+            >
+              {projectStates.map((state) => (
+                <MenuItem key={state} value={state}>{state}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} color="inherit">
+            Cancelar
           </Button>
-        </Paper>
-      )}
+          <Button onClick={handleSaveProject} variant="contained" disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* FAB para crear proyecto */}
-      <Fab
-        color="primary"
-        sx={{ position: 'fixed', bottom: 24, right: 24 }}
-        onClick={handleCreateProject}
-      >
-        <Add />
-      </Fab>
-
-      {/* Dialogs */}
-      <ProjectForm
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        onSubmit={handleFormSubmit}
-        project={selectedProject}
-        mode={formMode}
-      />
-
-      <ProjectDetails
-        open={openDetails}
-        onClose={() => setOpenDetails(false)}
-        project={selectedProject}
-      />
+      {/* Diálogo de confirmación de eliminación */}
+      <Dialog open={openDeleteDialog} onClose={handleCloseDeleteDialog}>
+        <DialogTitle>Eliminar Proyecto</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Está seguro de que desea eliminar el proyecto "{currentProject?.nombre}"? Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog} color="inherit">
+            Cancelar
+          </Button>
+          <Button onClick={handleDeleteProject} color="error" variant="contained" disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : 'Eliminar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

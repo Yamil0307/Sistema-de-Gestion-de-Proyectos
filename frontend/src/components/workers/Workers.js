@@ -1,246 +1,166 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  CardActions,
-  Chip,
-  IconButton,
-  Avatar,
-  Dialog,
-  Alert,
-  CircularProgress,
-  Fab,
-  Tabs,
-  Tab
+  Container, Typography, Button, Box, Grid, Card, CardContent, CardActions,
+  IconButton, TextField, Dialog, DialogActions, DialogContent, DialogTitle,
+  FormControl, InputLabel, Select, MenuItem, Alert, CircularProgress, Paper, Divider, Chip, Tooltip
 } from '@mui/material';
 import {
-  Add,
-  Edit,
-  Delete,
-  Visibility,
-  People,
-  Code,
-  Groups,
-  Star,
-  Email,
-  Phone,
-  Work
+  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Info as InfoIcon, People as PeopleIcon
 } from '@mui/icons-material';
 import { workerService } from '../../services/workerService';
-import WorkerForm from './WorkerForm';
-import WorkerDetails from './WorkerDetails';
 
 const Workers = () => {
   const [workers, setWorkers] = useState([]);
-  const [filteredWorkers, setFilteredWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [openForm, setOpenForm] = useState(false);
-  const [openDetails, setOpenDetails] = useState(false);
-  const [selectedWorker, setSelectedWorker] = useState(null);
-  const [formMode, setFormMode] = useState('create');
-  const [currentTab, setCurrentTab] = useState(0);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [currentWorker, setCurrentWorker] = useState(null);
+  const [formData, setFormData] = useState({
+    nombre: '',
+    especialidad: '',
+    experiencia: '',
+    rol: 'Programador'  // Valor por defecto
+  });
 
-  // Datos mock para desarrollo
-  const mockWorkers = [
-    {
-      id: 1,
-      nombre: 'Juan Carlos Pérez',
-      email: 'juan.perez@empresa.com',
-      telefono: '+54 11 1234-5678',
-      tipo: 'Programador',
-      tecnologias: ['React', 'Node.js', 'Python', 'MongoDB'],
-      experiencia: 5,
-      nivel: 'Senior',
-      salario: 120000,
-      fecha_ingreso: '2019-03-15',
-      estado: 'Activo',
-      proyectos_completados: 12,
-      calificacion: 4.8
-    },
-    {
-      id: 2,
-      nombre: 'María Fernanda González',
-      email: 'maria.gonzalez@empresa.com',
-      telefono: '+54 11 2345-6789',
-      tipo: 'Líder',
-      tecnologias: ['Java', 'Spring', 'Angular', 'PostgreSQL'],
-      experiencia: 8,
-      nivel: 'Senior',
-      salario: 180000,
-      fecha_ingreso: '2016-07-20',
-      estado: 'Activo',
-      proyectos_completados: 25,
-      calificacion: 4.9,
-      equipos_liderados: 3
-    },
-    {
-      id: 3,
-      nombre: 'Carlos Eduardo Martínez',
-      email: 'carlos.martinez@empresa.com',
-      telefono: '+54 11 3456-7890',
-      tipo: 'Programador',
-      tecnologias: ['Vue.js', 'PHP', 'Laravel', 'MySQL'],
-      experiencia: 3,
-      nivel: 'Mid',
-      salario: 90000,
-      fecha_ingreso: '2021-01-10',
-      estado: 'Activo',
-      proyectos_completados: 8,
-      calificacion: 4.5
-    },
-    {
-      id: 4,
-      nombre: 'Ana Sofía Rodríguez',
-      email: 'ana.rodriguez@empresa.com',
-      telefono: '+54 11 4567-8901',
-      tipo: 'Programador',
-      tecnologias: ['React Native', 'Flutter', 'Firebase', 'Dart'],
-      experiencia: 2,
-      nivel: 'Junior',
-      salario: 70000,
-      fecha_ingreso: '2022-09-05',
-      estado: 'Activo',
-      proyectos_completados: 4,
-      calificacion: 4.3
-    },
-    {
-      id: 5,
-      nombre: 'Roberto Alejandro Silva',
-      email: 'roberto.silva@empresa.com',
-      telefono: '+54 11 5678-9012',
-      tipo: 'Líder',
-      tecnologias: ['C#', '.NET', 'Azure', 'SQL Server'],
-      experiencia: 10,
-      nivel: 'Senior',
-      salario: 200000,
-      fecha_ingreso: '2014-02-12',
-      estado: 'Activo',
-      proyectos_completados: 35,
-      calificacion: 4.9,
-      equipos_liderados: 5
-    }
-  ];
+  const roles = ['Programador', 'Líder'];
 
   useEffect(() => {
     loadWorkers();
   }, []);
 
-  useEffect(() => {
-    filterWorkers();
-  }, [workers, currentTab]);
-
   const loadWorkers = async () => {
     try {
       setLoading(true);
-      // Intentar cargar desde API
-      const data = await workerService.getAllWorkers();
+      setError('');
+      console.log("Iniciando carga de todos los trabajadores...");
+      
+      // Usar el método combinado que obtiene tanto programadores como líderes
+      const data = await workerService.getAll();
+      console.log("Todos los trabajadores cargados:", data);
       setWorkers(data);
     } catch (error) {
-      console.log('Error al cargar trabajadores desde API, usando datos mock:', error);
-      // Fallback a datos mock
-      setWorkers(mockWorkers);
+      console.error("Error al cargar trabajadores:", error);
+      setError('Error al cargar los trabajadores');
     } finally {
       setLoading(false);
     }
   };
 
-  const filterWorkers = () => {
-    switch (currentTab) {
-      case 0: // Todos
-        setFilteredWorkers(workers);
-        break;
-      case 1: // Programadores
-        setFilteredWorkers(workers.filter(w => w.tipo === 'Programador'));
-        break;
-      case 2: // Líderes
-        setFilteredWorkers(workers.filter(w => w.tipo === 'Líder'));
-        break;
-      default:
-        setFilteredWorkers(workers);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleOpenDialog = (worker = null) => {
+    if (worker) {
+      // Edición - Copia todos los campos necesarios
+      setFormData({
+        nombre: worker.nombre || '',
+        especialidad: worker.especialidad || '',
+        experiencia: worker.experiencia || '',
+        rol: worker.rol || 'Programador'
+      });
+      setCurrentWorker(worker);
+    } else {
+      // Creación - Resetear a valores iniciales
+      setFormData({
+        nombre: '',
+        especialidad: '',
+        experiencia: '',
+        rol: 'Programador'
+      });
+      setCurrentWorker(null);
     }
+    
+    setOpenDialog(true);
   };
 
-  const handleCreateWorker = () => {
-    setSelectedWorker(null);
-    setFormMode('create');
-    setOpenForm(true);
+  const handleCloseDialog = () => {
+    setOpenDialog(false);
+    setCurrentWorker(null);
   };
 
-  const handleEditWorker = (worker) => {
-    setSelectedWorker(worker);
-    setFormMode('edit');
-    setOpenForm(true);
-  };
-
-  const handleViewWorker = (worker) => {
-    setSelectedWorker(worker);
-    setOpenDetails(true);
-  };
-
-  const handleDeleteWorker = async (workerId) => {
-    if (window.confirm('¿Está seguro de que desea eliminar este trabajador?')) {
-      try {
-        await workerService.deleteWorker(workerId);
-        setWorkers(workers.filter(w => w.id !== workerId));
-      } catch (error) {
-        console.error('Error al eliminar trabajador:', error);
-        setError('Error al eliminar el trabajador');
-      }
-    }
-  };
-
-  const handleFormSubmit = async (workerData) => {
+  const handleSaveWorker = async () => {
     try {
-      if (formMode === 'create') {
-        const newWorker = {
-          ...workerData,
-          id: Date.now(), // Mock ID
-          fecha_ingreso: new Date().toISOString().split('T')[0],
-          proyectos_completados: 0,
-          calificacion: 4.0
-        };
-        setWorkers([...workers, newWorker]);
-      } else {
-        const updatedWorker = { ...selectedWorker, ...workerData };
-        setWorkers(workers.map(w => w.id === selectedWorker.id ? updatedWorker : w));
+      setLoading(true);
+      setError('');
+
+      // Validación básica
+      if (!formData.nombre || !formData.rol) {
+        setError('Por favor, completa los campos requeridos');
+        setLoading(false);
+        return;
       }
-      setOpenForm(false);
+
+      console.log("Guardando trabajador:", formData);
+
+      if (currentWorker) {
+        // Actualización
+        await workerService.update(currentWorker.id, formData);
+      } else {
+        // Creación
+        await workerService.create(formData);
+      }
+
+      await loadWorkers();
+      handleCloseDialog();
     } catch (error) {
-      console.error('Error al guardar trabajador:', error);
-      setError('Error al guardar el trabajador');
+      console.error("Error al guardar trabajador:", error);
+      setError(error.message || 'Error al guardar el trabajador');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getLevelColor = (level) => {
-    const colors = {
-      'Junior': '#ff9800',
-      'Mid': '#2196f3',
-      'Senior': '#4caf50'
-    };
-    return colors[level] || '#9e9e9e';
+  const handleOpenDeleteDialog = (worker) => {
+    console.log("Preparando eliminación del trabajador:", worker);
+    setCurrentWorker(worker);
+    setOpenDeleteDialog(true);
   };
 
-  const getTypeIcon = (type) => {
-    return type === 'Líder' ? <Groups /> : <Code />;
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+    setCurrentWorker(null);
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount);
+  const handleDeleteWorker = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      if (!currentWorker || !currentWorker.id) {
+        setError('Error: Información del trabajador incompleta');
+        setLoading(false);
+        return;
+      }
+      
+      // Verificar explícitamente el rol
+      console.log("Datos completos del trabajador a eliminar:", currentWorker);
+      
+      if (!currentWorker.rol) {
+        setError('Error: El trabajador no tiene un rol definido');
+        setLoading(false);
+        return;
+      }
+      
+      // Llamar al servicio con ID y rol claramente definidos
+      await workerService.delete(currentWorker.id, currentWorker.rol);
+      
+      // Recargar la lista después de eliminar
+      await loadWorkers();
+      handleCloseDeleteDialog();
+    } catch (error) {
+      console.error("Error completo:", error);
+      setError(error.message || 'Error al eliminar el trabajador');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) {
+  if (loading && workers.length === 0) {
     return (
-      <Container maxWidth="lg" sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+      <Container sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
       </Container>
     );
@@ -248,300 +168,190 @@ const Workers = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      {/* Header */}
-      <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h4" gutterBottom>
-              Gestión de Trabajadores
-            </Typography>
-            <Typography variant="body1" color="textSecondary">
-              Administra programadores y líderes de equipo
-            </Typography>
-          </Box>
+      <Paper elevation={0} sx={{ p: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+          <Typography variant="h5" color="primary" sx={{ display: 'flex', alignItems: 'center' }}>
+            <PeopleIcon sx={{ mr: 1 }} /> Trabajadores
+          </Typography>
           <Button
             variant="contained"
-            startIcon={<Add />}
-            onClick={handleCreateWorker}
-            size="large"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
           >
             Nuevo Trabajador
           </Button>
         </Box>
-      </Paper>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
+        <Divider sx={{ mb: 3 }} />
 
-      {/* Estadísticas rápidas */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#e3f2fd' }}>
-            <CardContent>
-              <People sx={{ fontSize: 40, color: '#1976d2', mb: 1 }} />
-              <Typography variant="h4" color="#1976d2">
-                {workers.length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Total Trabajadores
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#e8f5e8' }}>
-            <CardContent>
-              <Code sx={{ fontSize: 40, color: '#2e7d32', mb: 1 }} />
-              <Typography variant="h4" color="#2e7d32">
-                {workers.filter(w => w.tipo === 'Programador').length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Programadores
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#fff3e0' }}>
-            <CardContent>
-              <Groups sx={{ fontSize: 40, color: '#f57c00', mb: 1 }} />
-              <Typography variant="h4" color="#f57c00">
-                {workers.filter(w => w.tipo === 'Líder').length}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Líderes
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ textAlign: 'center', bgcolor: '#fce4ec' }}>
-            <CardContent>
-              <Star sx={{ fontSize: 40, color: '#c2185b', mb: 1 }} />
-              <Typography variant="h4" color="#c2185b">
-                {workers.length > 0 ? (workers.reduce((acc, w) => acc + w.calificacion, 0) / workers.length).toFixed(1) : '0'}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Calificación Promedio
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
 
-      {/* Tabs para filtrar */}
-      <Paper elevation={1} sx={{ mb: 3 }}>
-        <Tabs 
-          value={currentTab} 
-          onChange={(e, newValue) => setCurrentTab(newValue)}
-          variant="fullWidth"
-        >
-          <Tab label={`Todos (${workers.length})`} />
-          <Tab label={`Programadores (${workers.filter(w => w.tipo === 'Programador').length})`} />
-          <Tab label={`Líderes (${workers.filter(w => w.tipo === 'Líder').length})`} />
-        </Tabs>
-      </Paper>
-
-      {/* Lista de Trabajadores */}
-      <Grid container spacing={3}>
-        {filteredWorkers.map((worker) => (
-          <Grid item xs={12} md={6} lg={4} key={worker.id}>
-            <Card 
-              sx={{ 
-                height: '100%', 
-                display: 'flex', 
-                flexDirection: 'column',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 4
-                }
-              }}
+        {workers.length === 0 && !loading ? (
+          <Paper sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="body1" color="textSecondary" gutterBottom>
+              No hay trabajadores disponibles
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => handleOpenDialog()}
+              sx={{ mt: 1 }}
             >
-              <CardContent sx={{ flexGrow: 1 }}>
-                {/* Header con avatar y tipo */}
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Avatar 
-                    sx={{ 
-                      bgcolor: worker.tipo === 'Líder' ? '#f57c00' : '#1976d2',
-                      mr: 2 
-                    }}
-                  >
-                    {getTypeIcon(worker.tipo)}
-                  </Avatar>
-                  <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6" component="h3" gutterBottom>
+              Crear Primer Trabajador
+            </Button>
+          </Paper>
+        ) : (
+          <Grid container spacing={3}>
+            {workers.map((worker) => (
+              <Grid item key={worker.id} xs={12} md={6} lg={4}>
+                <Card 
+                  elevation={2}
+                  sx={{ 
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transition: 'transform 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: 4
+                    }
+                  }}
+                >
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Typography variant="h6" component="h2" gutterBottom>
                       {worker.nombre}
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Chip
-                        label={worker.tipo}
-                        size="small"
-                        color={worker.tipo === 'Líder' ? 'warning' : 'primary'}
-                      />
-                      <Chip
-                        label={worker.nivel}
-                        size="small"
-                        sx={{
-                          backgroundColor: getLevelColor(worker.nivel),
-                          color: 'white'
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                </Box>
-
-                {/* Información de contacto */}
-                <Box sx={{ mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <Email sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="textSecondary">
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       {worker.email}
                     </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <Phone sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="textSecondary">
-                      {worker.telefono}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Work sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="textSecondary">
-                      {worker.experiencia} años de experiencia
-                    </Typography>
-                  </Box>
-                </Box>
-
-                {/* Tecnologías */}
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Tecnologías:
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {worker.tecnologias.slice(0, 3).map((tech, index) => (
-                      <Chip
-                        key={index}
-                        label={tech}
-                        size="small"
-                        variant="outlined"
-                      />
-                    ))}
-                    {worker.tecnologias.length > 3 && (
-                      <Chip
-                        label={`+${worker.tecnologias.length - 3}`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
-                  </Box>
-                </Box>
-
-                {/* Estadísticas */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="primary">
-                      {worker.proyectos_completados}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      Proyectos
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Star sx={{ color: '#ffd700', fontSize: 20, mr: 0.5 }} />
-                      <Typography variant="h6" color="primary">
-                        {worker.calificacion}
-                      </Typography>
-                    </Box>
-                    <Typography variant="caption" color="textSecondary">
-                      Rating
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="primary">
-                      {formatCurrency(worker.salario)}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      Salario
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-              
-              <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
-                <Box>
-                  <IconButton
-                    onClick={() => handleViewWorker(worker)}
-                    color="primary"
-                    title="Ver detalles"
-                  >
-                    <Visibility />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => handleEditWorker(worker)}
-                    color="primary"
-                    title="Editar"
-                  >
-                    <Edit />
-                  </IconButton>
-                </Box>
-                <IconButton
-                  onClick={() => handleDeleteWorker(worker.id)}
-                  color="error"
-                  title="Eliminar"
-                >
-                  <Delete />
-                </IconButton>
-              </CardActions>
-            </Card>
+                    <Chip 
+                      label={worker.rol}
+                      color={worker.rol === 'Líder' ? 'secondary' : 'primary'}
+                      sx={{ mb: 1 }}
+                    />
+                  </CardContent>
+                  <CardActions sx={{ justifyContent: 'flex-end', p: 2 }}>
+                    <Tooltip title="Editar">
+                      <IconButton 
+                        color="primary" 
+                        aria-label="editar trabajador"
+                        onClick={() => handleOpenDialog(worker)}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton 
+                        color="error" 
+                        aria-label="eliminar trabajador"
+                        onClick={() => handleOpenDeleteDialog(worker)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </CardActions>
+                </Card>
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
+        )}
+      </Paper>
 
-      {/* Mensaje si no hay trabajadores */}
-      {filteredWorkers.length === 0 && (
-        <Paper sx={{ p: 4, textAlign: 'center', mt: 4 }}>
-          <People sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
-          <Typography variant="h6" color="textSecondary" gutterBottom>
-            No hay trabajadores registrados
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-            Comienza agregando tu primer trabajador
-          </Typography>
-          <Button variant="contained" startIcon={<Add />} onClick={handleCreateWorker}>
-            Agregar Primer Trabajador
+      {/* Diálogo de creación/edición de trabajador */}
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {currentWorker ? 'Editar Trabajador' : 'Nuevo Trabajador'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            name="nombre"
+            label="Nombre"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={formData.nombre}
+            onChange={handleChange}
+            required
+          />
+          <TextField
+            margin="dense"
+            name="email"
+            label="Correo Electrónico"
+            type="email"
+            fullWidth
+            variant="outlined"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
+          <TextField
+            margin="dense"
+            name="especialidad"
+            label="Especialidad"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={formData.especialidad}
+            onChange={handleChange}
+          />
+          <TextField
+            margin="dense"
+            name="experiencia"
+            label="Años de Experiencia"
+            type="number"
+            fullWidth
+            variant="outlined"
+            value={formData.experiencia}
+            onChange={handleChange}
+          />
+          <FormControl fullWidth margin="dense">
+            <InputLabel id="rol-label">Rol</InputLabel>
+            <Select
+              labelId="rol-label"
+              name="rol"
+              value={formData.rol}
+              label="Rol"
+              onChange={handleChange}
+            >
+              {roles.map((rol) => (
+                <MenuItem key={rol} value={rol}>{rol}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} color="inherit">
+            Cancelar
           </Button>
-        </Paper>
-      )}
+          <Button onClick={handleSaveWorker} variant="contained" disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* FAB para crear trabajador */}
-      <Fab
-        color="primary"
-        sx={{ position: 'fixed', bottom: 24, right: 24 }}
-        onClick={handleCreateWorker}
-      >
-        <Add />
-      </Fab>
-
-      {/* Dialogs */}
-      <WorkerForm
-        open={openForm}
-        onClose={() => setOpenForm(false)}
-        onSubmit={handleFormSubmit}
-        worker={selectedWorker}
-        mode={formMode}
-      />
-
-      <WorkerDetails
-        open={openDetails}
-        onClose={() => setOpenDetails(false)}
-        worker={selectedWorker}
-      />
+      {/* Diálogo de confirmación de eliminación */}
+      <Dialog open={openDeleteDialog} onClose={handleCloseDeleteDialog}>
+        <DialogTitle>Eliminar Trabajador</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Está seguro de que desea eliminar a "{currentWorker?.nombre}"? Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteDialog} color="inherit">
+            Cancelar
+          </Button>
+          <Button onClick={handleDeleteWorker} color="error" variant="contained" disabled={loading}>
+            {loading ? <CircularProgress size={24} /> : 'Eliminar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

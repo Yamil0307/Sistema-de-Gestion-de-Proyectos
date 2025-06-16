@@ -1,51 +1,44 @@
-import api from './api';
+import api from '../utils/axios';
 
 export const teamService = {
-  // Obtener todos los equipos
-  getAllTeams: async () => {
-    const response = await api.get('/teams/');
-    return response.data;
+  getAll: async () => {
+    const res = await api.get('/teams/');
+    return res.data;
   },
   
-  // Obtener equipo específico
-  getTeam: async (id) => {
-    const response = await api.get(`/teams/${id}`);
-    return response.data;
+  getById: async (id) => {
+    const res = await api.get(`/teams/${id}`);
+    return res.data;
   },
   
-  // Crear nuevo equipo
-  createTeam: async (teamData) => {
-    const response = await api.post('/teams/', teamData);
-    return response.data;
+  create: async (data) => {
+    const res = await api.post('/teams/', data);
+    return res.data;
   },
   
-  // Actualizar equipo
-  updateTeam: async (id, teamData) => {
-    const response = await api.put(`/teams/${id}`, teamData);
-    return response.data;
+  update: async (id, data) => {
+    const res = await api.put(`/teams/${id}`, data);
+    return res.data;
   },
   
-  // Eliminar equipo
-  deleteTeam: async (id) => {
-    const response = await api.delete(`/teams/${id}`);
-    return response.data;
+  delete: async (id) => {
+    const res = await api.delete(`/teams/${id}`);
+    return res.data;
   },
-
-  // Asignar miembro al equipo
-  addMember: async (teamId, memberId) => {
-    const response = await api.post(`/teams/${teamId}/members`, { member_id: memberId });
-    return response.data;
+  
+  // Métodos para gestionar miembros del equipo
+  getMembers: async (teamId) => {
+    const res = await api.get(`/teams/${teamId}/members`);
+    return res.data;
   },
-
-  // Remover miembro del equipo
-  removeMember: async (teamId, memberId) => {
-    const response = await api.delete(`/teams/${teamId}/members/${memberId}`);
-    return response.data;
+  
+  addMember: async (teamId, workerId) => {
+    const res = await api.post(`/teams/${teamId}/members`, { worker_id: workerId });
+    return res.data;
   },
-
-  // Asignar proyecto al equipo
-  assignProject: async (teamId, projectId) => {
-    const response = await api.post(`/teams/${teamId}/projects`, { project_id: projectId });
-    return response.data;
+  
+  removeMember: async (teamId, workerId) => {
+    const res = await api.delete(`/teams/${teamId}/members/${workerId}`);
+    return res.data;
   }
 };

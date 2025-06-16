@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/common/Navbar';
 import Login from './components/auth/Login';
+import Register from './components/auth/Register';
 import Dashboard from './components/Dashboard';
 import Projects from './components/projects/Projects';
 import Workers from './components/workers/Workers';
@@ -48,6 +49,10 @@ function AppContent() {
         <Route 
           path="/login" 
           element={user ? <Navigate to="/dashboard" /> : <Login />} 
+        />
+        <Route 
+          path="/register" 
+          element={user ? <Navigate to="/dashboard" /> : <Register />} 
         />
         <Route 
           path="/dashboard" 
