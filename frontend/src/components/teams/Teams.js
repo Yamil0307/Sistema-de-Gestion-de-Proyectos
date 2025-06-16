@@ -9,25 +9,26 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 import { teamService } from '../../services/teamService';
-import { workerService } from '../../services/workerService';
 
 const Teams = () => {
   const [teams, setTeams] = useState([]);
-  const [workers, setWorkers] = useState([]); // Para el selector de trabajadores
+  const [availableLeaders, setAvailableLeaders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [currentTeam, setCurrentTeam] = useState(null);
+  
+  // Estado del formulario
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
-    lider_id: '',
+    lider_id: ''
   });
 
   useEffect(() => {
     loadTeams();
-    loadWorkers(); // Cargar los trabajadores para el selector
   }, []);
 
   const loadTeams = async () => {
@@ -35,8 +36,6 @@ const Teams = () => {
       setLoading(true);
       setError('');
       const data = await teamService.getAll();
-      console.log("Equipos cargados:", data);
-      console.log("Trabajadores cargados:", data);
       setTeams(data);
     } catch (error) {
       console.error("Error al cargar equipos:", error);
@@ -46,33 +45,53 @@ const Teams = () => {
     }
   };
 
-  const loadWorkers = async () => {
+  const loadAvailableLeaders = async () => {
     try {
-      // Intentar cargar todos los trabajadores
-      const data = await workerService.getAll();
-      console.log("Trabajadores cargados:", data);
-      setWorkers(data);
+      setError('');
+      console.log("Cargando líderes disponibles...");
+      const leaders = await teamService.getAvailableLeaders();
+      setAvailableLeaders(leaders);
+      console.log("Líderes disponibles cargados:", leaders);
     } catch (error) {
-      console.error("Error al cargar trabajadores:", error);
+      console.error("Error al cargar líderes disponibles:", error);
+      setError('Error al cargar los líderes disponibles');
     }
   };
 
-  const handleOpenDialog = (team = null) => {
+  const resetForm = () => {
+    setFormData({
+      nombre: '',
+      descripcion: '',
+      lider_id: ''
+    });
+  };
+
+  const handleOpenDialog = async (team = null) => {
+    // Cargar líderes disponibles antes de abrir el diálogo
+    await loadAvailableLeaders();
+    
     if (team) {
       // Modo edición
       setFormData({
         nombre: team.nombre || '',
         descripcion: team.descripcion || '',
-        lider_id: team.lider_id || '',
+        lider_id: team.lider_id || ''
       });
       setCurrentTeam(team);
+      
+      // Si estamos editando y el equipo ya tiene un líder, agregarlo a la lista de disponibles
+      if (team.lider_id && !availableLeaders.find(leader => leader.id === team.lider_id)) {
+        // Buscar el líder actual en todos los líderes para agregarlo temporalmente
+        try {
+          const allLeaders = await teamService.getAvailableLeaders();
+          // Esto podría necesitar ajuste dependiendo de cómo manejes la edición
+        } catch (error) {
+          console.warn("No se pudo cargar el líder actual del equipo");
+        }
+      }
     } else {
       // Modo creación
-      setFormData({
-        nombre: '',
-        descripcion: '',
-        lider_id: '',
-      });
+      resetForm();
       setCurrentTeam(null);
     }
     setOpenDialog(true);
@@ -80,6 +99,9 @@ const Teams = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    resetForm();
+    setSuccess('');
+    setError('');
   };
 
   const handleOpenDeleteDialog = (team) => {
@@ -89,6 +111,7 @@ const Teams = () => {
 
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
+    setCurrentTeam(null);
   };
 
   const handleChange = (e) => {
@@ -103,27 +126,47 @@ const Teams = () => {
     try {
       setLoading(true);
       setError('');
+      setSuccess('');
 
       // Validación básica
-      if (!formData.nombre) {
-        setError('Por favor, completa el nombre del equipo');
+      if (!formData.nombre.trim()) {
+        setError('El nombre del equipo es requerido');
         setLoading(false);
         return;
       }
 
+      // Preparar datos para enviar
+      const dataToSend = {
+        nombre: formData.nombre.trim(),
+        descripcion: formData.descripcion.trim() || '',
+        lider_id: formData.lider_id || null
+      };
+
+      console.log("Guardando equipo:", dataToSend);
+
       if (currentTeam) {
         // Actualización
-        await teamService.update(currentTeam.id, formData);
+        await teamService.update(currentTeam.id, dataToSend);
+        setSuccess('Equipo actualizado exitosamente');
       } else {
         // Creación
-        await teamService.create(formData);
+        await teamService.create(dataToSend);
+        setSuccess('Equipo creado exitosamente');
       }
 
       await loadTeams();
       handleCloseDialog();
     } catch (error) {
       console.error("Error al guardar equipo:", error);
-      setError(error.message || 'Error al guardar el equipo');
+      
+      // Manejo específico de errores
+      if (error.response?.status === 400) {
+        setError(error.response.data.detail || 'Datos inválidos para el equipo');
+      } else if (error.response?.status === 409) {
+        setError('Ya existe un equipo con ese nombre o el líder ya está asignado');
+      } else {
+        setError(error.message || 'Error al guardar el equipo');
+      }
     } finally {
       setLoading(false);
     }
@@ -133,7 +176,9 @@ const Teams = () => {
     try {
       setLoading(true);
       setError('');
+      
       await teamService.delete(currentTeam.id);
+      setSuccess('Equipo eliminado exitosamente');
       
       await loadTeams();
       handleCloseDeleteDialog();
@@ -145,19 +190,26 @@ const Teams = () => {
     }
   };
 
-  // Función para encontrar el trabajador líder por ID
-  const findLeaderById = (leaderId) => {
-    if (!leaderId) return null;
-    return workers.find(worker => worker.id === leaderId);
+  // Función para encontrar el nombre del líder por ID
+  const getLeaderName = (leaderId) => {
+    if (!leaderId) return 'Sin líder asignado';
+    
+    // Buscar en líderes disponibles primero
+    const leader = availableLeaders.find(l => l.id === leaderId);
+    if (leader) return leader.name;
+    
+    // Si no está en disponibles, podría estar asignado (para equipos existentes)
+    return `Líder ID: ${leaderId}`;
   };
 
   return (
-    <Container>
+    <Container maxWidth="lg">
       <Typography variant="h4" component="h1" gutterBottom>
         Gestión de Equipos
       </Typography>
       
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
       <Button
         variant="contained"
@@ -173,10 +225,10 @@ const Teams = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Nombre</TableCell>
-              <TableCell>Descripción</TableCell>
-              <TableCell>Líder</TableCell>
-              <TableCell>Acciones</TableCell>
+              <TableCell><strong>Nombre</strong></TableCell>
+              <TableCell><strong>Descripción</strong></TableCell>
+              <TableCell><strong>Líder</strong></TableCell>
+              <TableCell><strong>Acciones</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -193,39 +245,31 @@ const Teams = () => {
                 </TableCell>
               </TableRow>
             ) : (
-              teams.map((team) => {
-                // Encontrar el líder para este equipo
-                const leader = findLeaderById(team.lider_id);
-                
-                return (
-                  <TableRow key={team.id}>
-                    <TableCell>{team.nombre}</TableCell>
-                    <TableCell>{team.descripcion}</TableCell>
-                    <TableCell>
-                      {/* Aquí está la corrección para evitar el error */}
-                      {leader ? leader.nombre : 'Sin líder asignado'}
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title="Editar">
-                        <IconButton 
-                          color="primary"
-                          onClick={() => handleOpenDialog(team)}
-                        >
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Eliminar">
-                        <IconButton 
-                          color="error"
-                          onClick={() => handleOpenDeleteDialog(team)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              teams.map((team) => (
+                <TableRow key={team.id}>
+                  <TableCell>{team.nombre}</TableCell>
+                  <TableCell>{team.descripcion || 'Sin descripción'}</TableCell>
+                  <TableCell>{getLeaderName(team.lider_id)}</TableCell>
+                  <TableCell>
+                    <Tooltip title="Editar">
+                      <IconButton 
+                        color="primary"
+                        onClick={() => handleOpenDialog(team)}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton 
+                        color="error"
+                        onClick={() => handleOpenDeleteDialog(team)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
@@ -245,6 +289,8 @@ const Teams = () => {
             variant="outlined"
             value={formData.nombre}
             onChange={handleChange}
+            required
+            autoFocus
           />
           <TextField
             margin="dense"
@@ -256,6 +302,7 @@ const Teams = () => {
             variant="outlined"
             value={formData.descripcion}
             onChange={handleChange}
+            placeholder="Descripción opcional del equipo"
           />
           <FormControl fullWidth margin="dense">
             <InputLabel>Líder del Equipo</InputLabel>
@@ -266,18 +313,20 @@ const Teams = () => {
               label="Líder del Equipo"
             >
               <MenuItem value="">
-                <em>Sin líder</em>
+                <em>Sin líder asignado</em>
               </MenuItem>
-              {workers.map((worker) => (
-                // Solo mostrar trabajadores con rol de líder
-                worker.rol === 'Líder' && (
-                  <MenuItem key={worker.id} value={worker.id}>
-                    {worker.nombre}
-                  </MenuItem>
-                )
+              {availableLeaders.map((leader) => (
+                <MenuItem key={leader.id} value={leader.id}>
+                  {leader.name}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
+          {availableLeaders.length === 0 && (
+            <Typography variant="caption" color="textSecondary" sx={{ mt: 1 }}>
+              No hay líderes disponibles. Todos los líderes están asignados a otros equipos.
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog} color="secondary">
@@ -287,6 +336,7 @@ const Teams = () => {
             onClick={handleSaveTeam} 
             color="primary"
             disabled={loading}
+            variant="contained"
           >
             {loading ? <CircularProgress size={24} /> : 'Guardar'}
           </Button>
@@ -299,7 +349,10 @@ const Teams = () => {
         <DialogContent>
           <Typography>
             ¿Estás seguro que deseas eliminar el equipo 
-            {currentTeam ? ` "${currentTeam.nombre}"` : ''}?
+            <strong>{currentTeam ? ` "${currentTeam.nombre}"` : ''}</strong>?
+          </Typography>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+            Esta acción no se puede deshacer.
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -310,6 +363,7 @@ const Teams = () => {
             onClick={handleDeleteTeam} 
             color="error"
             disabled={loading}
+            variant="contained"
           >
             {loading ? <CircularProgress size={24} /> : 'Eliminar'}
           </Button>

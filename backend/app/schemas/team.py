@@ -4,18 +4,23 @@ from app.schemas.worker import ProgrammerOut, LeaderOut
 from app.schemas.project import ProjectOut
 
 class TeamBase(BaseModel):
-    pass  # De momento no tiene campos en la creación
+    nombre: str
+    descripcion: Optional[str] = None
+    lider_id: Optional[int] = None
 
-class TeamCreate(BaseModel):
-    leader_id: int
-    programmer_ids: List[int]
-    project_id: int
+class TeamCreate(TeamBase):
+    pass
 
-class TeamOut(BaseModel):
+class TeamUpdate(BaseModel):
+    nombre: Optional[str] = None
+    descripcion: Optional[str] = None
+    lider_id: Optional[int] = None
+
+class TeamOut(TeamBase):
     id: int
     leader: Optional[LeaderOut]
     programmers: List[ProgrammerOut]
     project: Optional[ProjectOut]
 
     class Config:
-        orm_mode = True
+        from_attributes = True

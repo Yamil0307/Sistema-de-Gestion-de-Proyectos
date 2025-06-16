@@ -31,16 +31,17 @@ instance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Mejorar el interceptor de respuesta
+// Mejorar el interceptor de respuesta existente:
 instance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ Respuesta exitosa para ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.status);
+    return response;
+  },
   (error) => {
-    // Log detallado del error
-    console.error('API Error:', error.message);
-    if (error.response) {
-      console.error('Response data:', error.response.data);
-      console.error('Response status:', error.response.status);
-    }
+    console.error(`❌ Error en ${error.config?.method?.toUpperCase()} ${error.config?.url}:`);
+    console.error('Código de estado:', error.response?.status);
+    console.error('Mensaje del servidor:', error.response?.data);
+    console.error('Headers de respuesta:', error.response?.headers);
     
     return Promise.reject(error);
   }

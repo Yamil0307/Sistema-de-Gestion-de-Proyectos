@@ -1,29 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Container, Typography, Button, Box, Grid, Card, CardContent, CardActions,
-  IconButton, TextField, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControl, InputLabel, Select, MenuItem, Alert, CircularProgress, Paper, Divider, Chip, Tooltip
+import { 
+  Container, Typography, Paper, Button, TextField, Dialog, DialogTitle, 
+  DialogContent, DialogActions, IconButton, Table, TableBody, TableCell, 
+  TableContainer, TableHead, TableRow, Tooltip, CircularProgress, 
+  Alert, FormControl, InputLabel, Select, MenuItem, Box
 } from '@mui/material';
-import {
-  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Info as InfoIcon, People as PeopleIcon
-} from '@mui/icons-material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import AddIcon from '@mui/icons-material/Add';
 import { workerService } from '../../services/workerService';
 
 const Workers = () => {
   const [workers, setWorkers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [currentWorker, setCurrentWorker] = useState(null);
+  
+  // Estado del formulario con campos separados para programador y líder
+  const [workerType, setWorkerType] = useState('Programador'); // Tipo de trabajador a crear
   const [formData, setFormData] = useState({
-    nombre: '',
-    especialidad: '',
-    experiencia: '',
-    rol: 'Programador'  // Valor por defecto
+    name: '',
+    age: '',
+    gender: '',
+    base_salary: '',
+    // Campos específicos para programador
+    category: '',
+    languages: [],
+    // Campos específicos para líder
+    experience_years: '',
+    directed_projects: ''
   });
-
-  const roles = ['Programador', 'Líder'];
 
   useEffect(() => {
     loadWorkers();
@@ -33,11 +41,7 @@ const Workers = () => {
     try {
       setLoading(true);
       setError('');
-      console.log("Iniciando carga de todos los trabajadores...");
-      
-      // Usar el método combinado que obtiene tanto programadores como líderes
       const data = await workerService.getAll();
-      console.log("Todos los trabajadores cargados:", data);
       setWorkers(data);
     } catch (error) {
       console.error("Error al cargar trabajadores:", error);
@@ -47,38 +51,100 @@ const Workers = () => {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      age: '',
+      gender: '',
+      base_salary: '',
+      category: '',
+      languages: [],
+      experience_years: '',
+      directed_projects: ''
+    });
+    setWorkerType('Programador');
   };
 
   const handleOpenDialog = (worker = null) => {
     if (worker) {
-      // Edición - Copia todos los campos necesarios
+      // Modo edición
       setFormData({
-        nombre: worker.nombre || '',
-        especialidad: worker.especialidad || '',
-        experiencia: worker.experiencia || '',
-        rol: worker.rol || 'Programador'
+        name: worker.name || '',
+        age: worker.age || '',
+        gender: worker.gender || '',
+        base_salary: worker.base_salary || '',
+        category: worker.category || '',
+        languages: worker.languages || [],
+        experience_years: worker.experience_years || '',
+        directed_projects: worker.directed_projects || ''
       });
+      // Determinar el tipo basado en los campos que tiene
+      setWorkerType(worker.category ? 'Programador' : 'Líder');
       setCurrentWorker(worker);
     } else {
-      // Creación - Resetear a valores iniciales
-      setFormData({
-        nombre: '',
-        especialidad: '',
-        experiencia: '',
-        rol: 'Programador'
-      });
+      // Modo creación
+      resetForm();
       setCurrentWorker(null);
     }
-    
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setCurrentWorker(null);
+    resetForm();
+  };
+
+  const handleOpenDeleteDialog = (worker) => {
+    console.log("=== ABRIENDO DIÁLOGO DE ELIMINACIÓN ===");
+    console.log("Trabajador seleccionado:", worker);
+    
+    if (!worker) {
+      console.error("No se proporcionó un trabajador para eliminar");
+      setError("Error: No se pudo seleccionar el trabajador");
+      return;
+    }
+    
+    if (!worker.id) {
+      console.error("El trabajador no tiene ID:", worker);
+      setError("Error: El trabajador no tiene un ID válido");
+      return;
+    }
+    
+    setCurrentWorker(worker);
+    setOpenDeleteDialog(true);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleLanguagesChange = (e) => {
+    const value = e.target.value;
+    const languagesArray = value ? value.split(',').map(lang => lang.trim()).filter(lang => lang) : [];
+    setFormData(prev => ({
+      ...prev,
+      languages: languagesArray
+    }));
+  };
+
+  const handleWorkerTypeChange = (e) => {
+    setWorkerType(e.target.value);
+    // Limpiar campos específicos cuando cambia el tipo
+    setFormData(prev => ({
+      ...prev,
+      category: '',
+      languages: [],
+      experience_years: '',
+      directed_projects: ''
+    }));
   };
 
   const handleSaveWorker = async () => {
@@ -86,21 +152,55 @@ const Workers = () => {
       setLoading(true);
       setError('');
 
-      // Validación básica
-      if (!formData.nombre || !formData.rol) {
-        setError('Por favor, completa los campos requeridos');
+      // Validación básica común
+      if (!formData.name || !formData.age || !formData.gender || !formData.base_salary) {
+        setError('Por favor, completa todos los campos básicos requeridos');
         setLoading(false);
         return;
       }
 
-      console.log("Guardando trabajador:", formData);
+      let dataToSend = {};
 
-      if (currentWorker) {
-        // Actualización
-        await workerService.update(currentWorker.id, formData);
+      if (workerType === 'Programador') {
+        // Validación específica para programador
+        if (!formData.category || !formData.languages.length) {
+          setError('Por favor, completa la categoría y al menos un lenguaje para programadores');
+          setLoading(false);
+          return;
+        }
+
+        // Datos para programador
+        dataToSend = {
+          name: formData.name,
+          age: parseInt(formData.age),
+          gender: formData.gender,
+          base_salary: parseFloat(formData.base_salary),
+          category: formData.category,
+          languages: formData.languages
+        };
+
+        console.log("Creando programador:", dataToSend);
+        await workerService.createProgrammer(dataToSend);
       } else {
-        // Creación
-        await workerService.create(formData);
+        // Validación específica para líder
+        if (!formData.experience_years || !formData.directed_projects) {
+          setError('Por favor, completa los años de experiencia y proyectos dirigidos para líderes');
+          setLoading(false);
+          return;
+        }
+
+        // Datos para líder
+        dataToSend = {
+          name: formData.name,
+          age: parseInt(formData.age),
+          gender: formData.gender,
+          base_salary: parseFloat(formData.base_salary),
+          experience_years: parseInt(formData.experience_years),
+          directed_projects: parseInt(formData.directed_projects)
+        };
+
+        console.log("Creando líder:", dataToSend);
+        await workerService.createLeader(dataToSend);
       }
 
       await loadWorkers();
@@ -113,132 +213,115 @@ const Workers = () => {
     }
   };
 
-  const handleOpenDeleteDialog = (worker) => {
-    console.log("Preparando eliminación del trabajador:", worker);
-    setCurrentWorker(worker);
-    setOpenDeleteDialog(true);
-  };
-
-  const handleCloseDeleteDialog = () => {
-    setOpenDeleteDialog(false);
-    setCurrentWorker(null);
-  };
-
   const handleDeleteWorker = async () => {
     try {
       setLoading(true);
       setError('');
       
-      if (!currentWorker || !currentWorker.id) {
-        setError('Error: Información del trabajador incompleta');
-        setLoading(false);
-        return;
+      console.log("=== INICIANDO ELIMINACIÓN ===");
+      console.log("Trabajador a eliminar:", currentWorker);
+      
+      if (!currentWorker) {
+        throw new Error("No hay trabajador seleccionado para eliminar");
       }
       
-      // Verificar explícitamente el rol
-      console.log("Datos completos del trabajador a eliminar:", currentWorker);
-      
-      if (!currentWorker.rol) {
-        setError('Error: El trabajador no tiene un rol definido');
-        setLoading(false);
-        return;
+      if (!currentWorker.id) {
+        throw new Error("El trabajador no tiene un ID válido");
       }
       
-      // Llamar al servicio con ID y rol claramente definidos
-      await workerService.delete(currentWorker.id, currentWorker.rol);
+      // Pasar tanto el ID como el objeto completo del trabajador
+      await workerService.delete(currentWorker.id, currentWorker);
       
-      // Recargar la lista después de eliminar
+      console.log("=== ELIMINACIÓN COMPLETADA ===");
+      
+      // Recargar la lista de trabajadores
       await loadWorkers();
+      
+      // Cerrar el diálogo
       handleCloseDeleteDialog();
+      
+      // Opcional: mostrar mensaje de éxito
+      // setSuccess("Trabajador eliminado exitosamente");
+      
     } catch (error) {
-      console.error("Error completo:", error);
+      console.error("=== ERROR EN handleDeleteWorker ===");
+      console.error("Error:", error);
+      
       setError(error.message || 'Error al eliminar el trabajador');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && workers.length === 0) {
-    return (
-      <Container sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
-      </Container>
-    );
-  }
-
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper elevation={0} sx={{ p: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-          <Typography variant="h5" color="primary" sx={{ display: 'flex', alignItems: 'center' }}>
-            <PeopleIcon sx={{ mr: 1 }} /> Trabajadores
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
-          >
-            Nuevo Trabajador
-          </Button>
-        </Box>
+    <Container>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Gestión de Trabajadores
+      </Typography>
+      
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-        <Divider sx={{ mb: 3 }} />
+      <Button
+        variant="contained"
+        color="primary"
+        startIcon={<AddIcon />}
+        onClick={() => handleOpenDialog()}
+        sx={{ mb: 3 }}
+      >
+        Nuevo Trabajador
+      </Button>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
-            {error}
-          </Alert>
-        )}
-
-        {workers.length === 0 && !loading ? (
-          <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="body1" color="textSecondary" gutterBottom>
-              No hay trabajadores disponibles
-            </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={() => handleOpenDialog()}
-              sx={{ mt: 1 }}
-            >
-              Crear Primer Trabajador
-            </Button>
-          </Paper>
-        ) : (
-          <Grid container spacing={3}>
-            {workers.map((worker) => (
-              <Grid item key={worker.id} xs={12} md={6} lg={4}>
-                <Card 
-                  elevation={2}
-                  sx={{ 
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    transition: 'transform 0.2s',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: 4
-                    }
-                  }}
-                >
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6" component="h2" gutterBottom>
-                      {worker.nombre}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      {worker.email}
-                    </Typography>
-                    <Chip 
-                      label={worker.rol}
-                      color={worker.rol === 'Líder' ? 'secondary' : 'primary'}
-                      sx={{ mb: 1 }}
-                    />
-                  </CardContent>
-                  <CardActions sx={{ justifyContent: 'flex-end', p: 2 }}>
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Nombre</TableCell>
+              <TableCell>Edad</TableCell>
+              <TableCell>Género</TableCell>
+              <TableCell>Salario Base</TableCell>
+              <TableCell>Tipo</TableCell>
+              <TableCell>Detalles</TableCell>
+              <TableCell>Acciones</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  <CircularProgress />
+                </TableCell>
+              </TableRow>
+            ) : workers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  No hay trabajadores registrados
+                </TableCell>
+              </TableRow>
+            ) : (
+              workers.map((worker) => (
+                <TableRow key={worker.id}>
+                  <TableCell>{worker.name}</TableCell>
+                  <TableCell>{worker.age}</TableCell>
+                  <TableCell>{worker.gender}</TableCell>
+                  <TableCell>${worker.base_salary}</TableCell>
+                  <TableCell>{worker.category ? 'Programador' : 'Líder'}</TableCell>
+                  <TableCell>
+                    {worker.category ? (
+                      <div>
+                        <div>Categoría: {worker.category}</div>
+                        <div>Lenguajes: {worker.languages?.join(', ')}</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div>Experiencia: {worker.experience_years} años</div>
+                        <div>Proyectos: {worker.directed_projects}</div>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Tooltip title="Editar">
                       <IconButton 
-                        color="primary" 
-                        aria-label="editar trabajador"
+                        color="primary"
                         onClick={() => handleOpenDialog(worker)}
                       >
                         <EditIcon />
@@ -246,108 +329,176 @@ const Workers = () => {
                     </Tooltip>
                     <Tooltip title="Eliminar">
                       <IconButton 
-                        color="error" 
-                        aria-label="eliminar trabajador"
+                        color="error"
                         onClick={() => handleOpenDeleteDialog(worker)}
                       >
                         <DeleteIcon />
                       </IconButton>
                     </Tooltip>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        )}
-      </Paper>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {/* Diálogo de creación/edición de trabajador */}
+      {/* Diálogo para crear/editar trabajador */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {currentWorker ? 'Editar Trabajador' : 'Nuevo Trabajador'}
+          {currentWorker ? 'Editar Trabajador' : 'Crear Trabajador'}
         </DialogTitle>
         <DialogContent>
+          {/* Selector de tipo de trabajador (solo en modo creación) */}
+          {!currentWorker && (
+            <FormControl fullWidth margin="dense">
+              <InputLabel>Tipo de Trabajador</InputLabel>
+              <Select
+                value={workerType}
+                onChange={handleWorkerTypeChange}
+                label="Tipo de Trabajador"
+              >
+                <MenuItem value="Programador">Programador</MenuItem>
+                <MenuItem value="Líder">Líder</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+
+          {/* Campos comunes */}
           <TextField
-            autoFocus
             margin="dense"
-            name="nombre"
+            name="name"
             label="Nombre"
-            type="text"
             fullWidth
             variant="outlined"
-            value={formData.nombre}
+            value={formData.name}
             onChange={handleChange}
             required
           />
           <TextField
             margin="dense"
-            name="email"
-            label="Correo Electrónico"
-            type="email"
-            fullWidth
-            variant="outlined"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-          <TextField
-            margin="dense"
-            name="especialidad"
-            label="Especialidad"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={formData.especialidad}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="dense"
-            name="experiencia"
-            label="Años de Experiencia"
+            name="age"
+            label="Edad"
             type="number"
             fullWidth
             variant="outlined"
-            value={formData.experiencia}
+            value={formData.age}
             onChange={handleChange}
+            required
           />
           <FormControl fullWidth margin="dense">
-            <InputLabel id="rol-label">Rol</InputLabel>
+            <InputLabel>Género</InputLabel>
             <Select
-              labelId="rol-label"
-              name="rol"
-              value={formData.rol}
-              label="Rol"
+              name="gender"
+              value={formData.gender}
               onChange={handleChange}
+              label="Género"
+              required
             >
-              {roles.map((rol) => (
-                <MenuItem key={rol} value={rol}>{rol}</MenuItem>
-              ))}
+              <MenuItem value="Masculino">Masculino</MenuItem>
+              <MenuItem value="Femenino">Femenino</MenuItem>
+              <MenuItem value="Otro">Otro</MenuItem>
             </Select>
           </FormControl>
+          <TextField
+            margin="dense"
+            name="base_salary"
+            label="Salario Base"
+            type="number"
+            fullWidth
+            variant="outlined"
+            value={formData.base_salary}
+            onChange={handleChange}
+            required
+          />
+
+          {/* Campos específicos para programador */}
+          {workerType === 'Programador' && (
+            <>
+              <TextField
+                margin="dense"
+                name="category"
+                label="Categoría"
+                fullWidth
+                variant="outlined"
+                value={formData.category}
+                onChange={handleChange}
+                required
+              />
+              <TextField
+                margin="dense"
+                name="languages"
+                label="Lenguajes de Programación (separados por comas)"
+                fullWidth
+                variant="outlined"
+                value={formData.languages.join(', ')}
+                onChange={handleLanguagesChange}
+                placeholder="JavaScript, Python, Java"
+                required
+              />
+            </>
+          )}
+
+          {/* Campos específicos para líder */}
+          {workerType === 'Líder' && (
+            <>
+              <TextField
+                margin="dense"
+                name="experience_years"
+                label="Años de Experiencia"
+                type="number"
+                fullWidth
+                variant="outlined"
+                value={formData.experience_years}
+                onChange={handleChange}
+                required
+              />
+              <TextField
+                margin="dense"
+                name="directed_projects"
+                label="Proyectos Dirigidos"
+                type="number"
+                fullWidth
+                variant="outlined"
+                value={formData.directed_projects}
+                onChange={handleChange}
+                required
+              />
+            </>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog} color="inherit">
+          <Button onClick={handleCloseDialog} color="secondary">
             Cancelar
           </Button>
-          <Button onClick={handleSaveWorker} variant="contained" disabled={loading}>
+          <Button 
+            onClick={handleSaveWorker} 
+            color="primary"
+            disabled={loading}
+          >
             {loading ? <CircularProgress size={24} /> : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Diálogo de confirmación de eliminación */}
+      {/* Diálogo para confirmar eliminación */}
       <Dialog open={openDeleteDialog} onClose={handleCloseDeleteDialog}>
-        <DialogTitle>Eliminar Trabajador</DialogTitle>
+        <DialogTitle>Confirmar Eliminación</DialogTitle>
         <DialogContent>
           <Typography>
-            ¿Está seguro de que desea eliminar a "{currentWorker?.nombre}"? Esta acción no se puede deshacer.
+            ¿Estás seguro que deseas eliminar al trabajador 
+            {currentWorker ? ` "${currentWorker.name}"` : ''}?
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDeleteDialog} color="inherit">
+          <Button onClick={handleCloseDeleteDialog} color="primary">
             Cancelar
           </Button>
-          <Button onClick={handleDeleteWorker} color="error" variant="contained" disabled={loading}>
+          <Button 
+            onClick={handleDeleteWorker} 
+            color="error"
+            disabled={loading}
+          >
             {loading ? <CircularProgress size={24} /> : 'Eliminar'}
           </Button>
         </DialogActions>

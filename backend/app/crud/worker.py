@@ -50,3 +50,29 @@ def get_all_leaders(db: Session):
 # ─── Obtener por ID ───
 def get_worker_by_id(db: Session, worker_id: int):
     return db.query(Programmer).filter_by(id=worker_id).first() or db.query(Leader).filter_by(id=worker_id).first()
+
+def get_programmer_by_id(db: Session, programmer_id: int):
+    """Obtener programador por ID"""
+    return db.query(Programmer).filter(Programmer.id == programmer_id).first()
+
+def get_leader_by_id(db: Session, leader_id: int):
+    """Obtener líder por ID"""
+    return db.query(Leader).filter(Leader.id == leader_id).first()
+
+def delete_programmer(db: Session, programmer_id: int):
+    """Eliminar programador por ID"""
+    programmer = db.query(Programmer).filter(Programmer.id == programmer_id).first()
+    if programmer:
+        db.delete(programmer)
+        db.commit()
+        return True
+    return False
+
+def delete_leader(db: Session, leader_id: int):
+    """Eliminar líder por ID"""
+    leader = db.query(Leader).filter(Leader.id == leader_id).first()
+    if leader:
+        db.delete(leader)
+        db.commit()
+        return True
+    return False
